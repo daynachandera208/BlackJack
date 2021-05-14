@@ -1,0 +1,254 @@
+Bot Uses Same Class Object as Player to Store Game Data there is Boolean "isBot" defines weather data is of player or bot .
+
+Bot Logic rests in different methods and according to need it is called by Main Gameplay Logic.
+
+
+1) Bot creation Logic
+
+1.1. Player1 Joins Room:
+    -at this time Timeout starts for 10 seconds 
+    -in between 10 seconds Room listensn for other player
+
+1.2. After 10 Seconds timeout is finished logic for bot creation is called as follows
+
+    - check for total players joint room if there are not enough players than add Bot
+        if Playerounter < 3
+        than execute following logic for adding Bot
+
+        1.2.1 -Increse Joint PlayerCounter Value by One
+        1.2.2 -Initialize Bot Details in Player class objects with isBot set to true
+        1.2.3 -Store Initialized object into room State 
+        1.2.4 -Foreach sit check if it is empty or not if found empty sit than Place Bot To that sit
+            for(let i:number=0;i<4;i++)
+            1.2.4.1 -Initialize Flag boolan  to true
+                flag=true;
+            1.2.4.2 -Foreach Players joint room check there sit no. 
+                this.state.PlayersInGame.Foreach(element=>{}
+
+                1.2.4.2.1 -Check if Player's Sit No ==i
+                    if element.sitNo==i
+                    than 
+                        flag = false
+                1.2.4.2.2 -Check if Flag is True means sit no i is empty
+                    if flag==true
+                    than
+                        -set bot's sitno from 0 to i
+                            this.state.playersInGame[this.playercounter-1].SitNo=i;
+                        -Increse sitting PlayerCounter by One
+                            this.sittingplayercounter++;
+                        -Broadcast Message To All That Bot Has Taken Sit
+                            this.broadcast("PlayerSitted",{sitno:i,player:JSON.stringify(p)});
+                        -Break The Loop
+                            break;
+            1.2.4.3 -Check if PlayerCounter ==3
+            if PlayerCounter == 3
+            than 
+                -Lock room and call  start Game logic
+                    this.lock();
+                    this.SratGame();
+            
+1.3 On Start Game Logic assign After sorting Players Sit vise store Bot sitNo to class variabe FixedBotIndex
+    .
+    .
+    .
+    if(element.isBot)
+    {
+            //assing fixedbotIndex with index of bot in arrayschema
+            this.FixedBotIndex=i-1;
+    }
+    .
+    .
+    .
+
+
+
+
+
+2) Logic For Bot to Place Initial random Bet at random Time in Every hand 
+
+
+after StartGame sorts Player and auto Assign sit to standing Players it calls StartNewHand() to proced towands new Hand
+    StartNewHand() is called to start next Hand , so it will be called as many times as total hands in Current table
+
+
+- check if there is Bot in Game and it is in Current Hand
+
+if FixedBotIndex!=-1 && playersInGame[FixedBotIndex].isPlaying
+Note : here isPlaying is boolan and used to determin if Player is Playing Game it's value becomes false when player does not have enough chips to even place minimum bet
+Note: isPlaying will rarely be false in case of bot because we can setUp Bot's Chips so that they will nevr run out
+than
+
+    2.0 - set Win Probability of bot
+        Note: win Probability of bot ( 50% )is higher than Normal Players
+        2.0.1-initialize variable with random number between 1 to 10
+            let probability:number=Math.floor(Math.random() * 10);
+        2.0.2 - Check if varible is > 5
+            if(probability>4)
+            {//Bot Will Win current hand
+                this.state.playersInGame.at(this.FixedBotIndex).willWin=1;
+            }
+            else //Bot Will Loss current hand
+                this.state.playersInGame.at(this.FixedBotIndex).willWin=0;
+
+    2.1 - set random timeout form 3 to 7 seconds for Placing Bet
+    this.clock.setTimeOut(()=>{...}, Math.floor(Math.random() * (7000 - 3000 + 1) + 2000));
+    Note: here time is in milisceonds
+
+    -Logic after timeout
+        2.1.1 - initialize Variables for BetAmmount and stepIndex
+            Note: we can have  6 options to bet so variable tmp will have random value from 1 to 6
+            Note: betAmmount Stores minimumbet possible by default
+                let tmp:number= Math.floor(Math.random() * 6);
+                let betamt:number=this.state.currentTable.minBet;
+
+        2.1.2 - Run Loop from 2 to tmp and execute logic used for creating bet options
+            -for(let  j:number=2;j<=tmp;j++)
+
+            2.1.2.1 - initialize variable storing next bet BetAmmount
+                let newBetAmt:number=0;
+            2.1.2.2 - if j is even than multiplay betammount by 5 else by 2 to get newBetAmt
+                if(j%2==0)
+                {
+                  newBetAmt=betamt*5;
+                }
+                else
+                {
+                  newBetAmt= betamt*2;
+                }
+            2.1.2.3 - check if bot has chips more than newBetAmt , if bot has not than break
+                if(newBetAmt>this.state.playersInGame[this.FixedBotIndex].myChips)
+                {
+                  //bot has less chips than break and give samllest bet else continue
+                  break;
+                }
+                else
+                {
+                  betamt=newBetAmt;
+                }
+        2.1.3 - deduct Bet Ammount from bot's chips balance and increment it to chipsInBet To PlayerHandData
+            Note:PlayerHandDetails is array of lenght 2 storing data related to cards , bet ,points,etc.
+            Note:PlayerHandDetails by default sotre only one element but wen Player Splits new data is stored in second element
+
+            this.state.playersInGame[this.FixedBotIndex].playerHandDetails[0].bet=betamt;
+            this.state.playersInGame[this.FixedBotIndex].myChips-=betamt;
+        2.1.4 - Set class variable isBotFirstTurn to true
+            Note: this will be used for Split logic to determin either bot can split or not
+            this.isBotFirstTurn=true;
+        2.1.5 - Broadcast bot bet to all players
+            this.broadcast("SetInitialBet",{bet:betamt,sitno:this.FixedBotIndex+1});
+        2.1.6 - Check if All Players Had Placed Thair Bet than call logic for Distributing cards
+             this.DistributrInitailCards();
+        
+
+3) Bot Turn Gameplay (Main Gameplay)
+Note: There are Two methods GetNextTurn() and RepeatCurrentTurn() which are responsible for assigning turn to all players 
+Note: both method mentioned above checks if there is Turn of bot than calls main logic for Bot Gameplay
+
+- if playersInGame[currentTurnOfPlayer].isBot 
+    if(this.state.playersInGame[this.state.currentTurnOfPlayer-1].isBot==true)
+than 
+    call to fixedBotTurn()
+      this.FixBotTurn();
+- Set TimeOut for AutoStand after 10 seconds and broadcast turn to all players
+     this.clock.setTimeout(()=>{
+        this.Stand(this.state.currentTurnOfPlayer,this.state.playersInGame[this.state.currentTurnOfPlayer-1].currentSplitTurn);
+      },10000);
+      this.broadcast("StartNewTurn",{turnOfPlayer:this.state.currentTurnOfPlayer,splitNo:this.state.playersInGame[this.state.currentTurnOfPlayer-1].currentSplitTurn});
+    
+FixedBotTurn():-
+  FixBotTurn(splitNo:number=0)
+3.1 - initialize splitNo variable to current splitTurn of playersInGame[] for bot and reset clock
+    Note: currentSplitTurn is used to track Player's Turn Split vise if there are any ,
+    Note: currentSplitTurn is zero if there is no splits for that player otherwise 1 or 2 representing splits 
+    let splitNo:number=this.state.playersInGame[this.state.currentTurnOfPlayer-1].currentSplitTurn;
+    this.clock.clear();
+    this.clock.start();
+
+3.2 - check if Bot Has Any Splits 
+    Note: initially bot will not have any split 
+    if currentSplitTurn == 0
+    than there is no splits execute logic according to that
+
+        3.2.1 - check if Bot Will Win or Loss
+        if  playersInGame[fixedbotIndex].willWin== false
+        than bot will loss so reduce complexcity and perform only hit and stand operations
+
+            3.2.1.1 - check for random probability morethan 70%
+                Note: more chance of hit
+                if(Math.random()>0.3)
+                than Logic for hit at random time between 3 to 7 seconds
+                    this.clock.setTimeout(()=>{
+                        this.Hit(this.state.currentTurnOfPlayer,splitNo);
+                    },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+                
+                -else Stand at random time
+                    this.clock.setTimeout(()=>{
+                        this.Stand(this.state.currentTurnOfPlayer,splitNo);
+                    },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+        -else     Bot will Win so Take proper Steps
+
+            3.2.1.1 - check for split options
+            if Bot have two same Point cards and isBotFirstTurn is true 
+            than bot can split cards further check for card spliting fesibility
+
+                3.2.1.1.1 - Check if two 10 poin cards are there
+                if Bot having cards of point 10
+                than high chances to win stand at random time
+                    this.clock.setTimeout(()=>{
+                        this.Stand(this.state.currentTurnOfPlayer,splitNo);
+                    },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+                
+                -else if bot has cards with point higher than 7
+                than high chances to win splits so split at random time
+                    this.clock.setTimeout(()=>{
+                        this.Split(this.state.currentTurnOfPlayer);
+                    },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+            
+            3.2.1.2 - check if Duble is fesible or not
+            if Bot is having total points between 12 and 16 and isBotFirstTurn is True
+            than high chances to win at one hit so double at random time to increse winammount
+                this.clock.setTimeout(()=>{
+                this.Double(this.state.currentTurnOfPlayer,splitNo);
+        
+                },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+            
+            3.2.1.3 - check for Hit options
+            if bot has cards with sum of points < 18 
+            than Hit at random time
+            Note: bot will going to win so it will never burst 
+                this.clock.setTimeout(()=>{
+                        this.Hit(this.state.currentTurnOfPlayer,splitNo);
+                },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+            
+            -else we have high chance for win so stand at random time
+                this.clock.setTimeout(()=>{
+                        this.Stand(this.state.currentTurnOfPlayer,splitNo);
+                },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+
+    -else Bot is having splits
+    Note: now bot can not split as it is already happent and bot will only split when it is going to win
+        3.2.1 - check if Duble is fesible or not
+        if Bot is having total points between 12 and 16 and isBotFirstTurn is True
+        than high chances to win at one hit so double at random time to increse winammount
+                this.clock.setTimeout(()=>{
+                this.Double(this.state.currentTurnOfPlayer,splitNo);
+        
+                },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+
+        3.2.2 - check for Hit options
+        if bot has cards with sum of points < 18 
+        than Hit at random time
+        Note: bot will going to win so it will never burst 
+                this.clock.setTimeout(()=>{
+                        this.Hit(this.state.currentTurnOfPlayer,splitNo);
+                },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+            
+        -else we have high chance for win so stand at random time
+                this.clock.setTimeout(()=>{
+                        this.Stand(this.state.currentTurnOfPlayer,splitNo);
+                },Math.floor(Math.random() * (7000 - 3000 + 1) + 3000));
+3.3 Set isBotFirstTurn to false
+    this.isBotFirstTurn=false;
+
+
+Note: isBotFirstTurn becomes true at start of every hand and at Split() so we can use it to determin wheter split and double options are available or not.
